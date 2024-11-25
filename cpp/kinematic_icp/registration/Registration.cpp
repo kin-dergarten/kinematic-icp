@@ -29,7 +29,9 @@
 #include <tbb/task_arena.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <iostream>
 #include <kiss_icp/core/VoxelHashMap.hpp>
 #include <limits>
 #include <numeric>
@@ -135,7 +137,29 @@ Eigen::Vector2d ComputePerturbation(const Correspondences &correspondences,
     JTJ += Omega;
     return -(JTJ.inverse() * JTr);
 }
+struct Timer {
+    using Clock = std::chrono::high_resolution_clock;
+    using TimePoint = std::chrono::time_point<Clock>;
 
+    TimePoint start_time;
+    TimePoint end_time;
+
+    // Start the timer
+    void start() { start_time = Clock::now(); }
+
+    // Stop the timer
+    void stop() { end_time = Clock::now(); }
+
+    // Get elapsed time in milliseconds
+    double elapsedMilliseconds() const {
+        return std::chrono::duration<double, std::milli>(end_time - start_time).count();
+    }
+
+    // Get elapsed time in seconds
+    double elapsedNanoseconds() const {
+        return std::chrono::duration<double, std::nano>(end_time - start_time).count();
+    }
+};
 }  // namespace
 
 namespace kinematic_icp {
@@ -164,6 +188,8 @@ Sophus::SE3d KinematicRegistration::ComputeRobotMotion(const std::vector<Eigen::
                                                        const Sophus::SE3d &last_robot_pose,
                                                        const Sophus::SE3d &relative_wheel_odometry,
                                                        const double max_correspondence_distance) {
+    Timer timer;
+    timer.start();
     Sophus::SE3d current_estimate = last_robot_pose * relative_wheel_odometry;
     if (voxel_map.Empty()) return current_estimate;
 
@@ -187,7 +213,8 @@ Sophus::SE3d KinematicRegistration::ComputeRobotMotion(const std::vector<Eigen::
         }
     }();
     // ICP-loop
-    for (int j = 0; j < max_num_iterations_; ++j) {
+    int j = 0;
+    for (; j < max_num_iterations_; ++j) {
         const auto dx = ComputePerturbation(correspondences, current_estimate, regularization_term);
         const auto delta_motion = motion_model(dx);
         current_estimate = current_estimate * delta_motion;
@@ -196,6 +223,10 @@ Sophus::SE3d KinematicRegistration::ComputeRobotMotion(const std::vector<Eigen::
         correspondences =
             DataAssociation(frame, voxel_map, current_estimate, max_correspondence_distance);
     }
+    timer.stop();
+    std::cout << "Number of iterations: " << j << std::endl;
+    std::cout << voxel_map.map_.size() << " Voxels" << std::endl;
+    std::cout << "Time per alignment: " << timer.elapsedMilliseconds() << " ns" << std::endl;
     // Spit the final transformation
     return current_estimate;
 }
