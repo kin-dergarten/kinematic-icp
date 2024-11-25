@@ -226,7 +226,7 @@ Sophus::SE3d KinematicRegistration::ComputeRobotMotion(const std::vector<Eigen::
     timer.stop();
     std::cout << "Number of iterations: " << j << std::endl;
     std::cout << voxel_map.map_.size() << " Voxels" << std::endl;
-    std::cout << "Time per alignment: " << timer.elapsedMilliseconds() << " ns" << std::endl;
+    std::cout << "Time per alignment: " << timer.elapsedMilliseconds() << " ms" << std::endl;
     // Spit the final transformation
     return current_estimate;
 }
